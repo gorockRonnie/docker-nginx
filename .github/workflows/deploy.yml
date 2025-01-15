@@ -1,0 +1,46 @@
+name: Example
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+env:
+  USERNAME: lihonglin.1325@bytedance.com@33663066
+  REGISTRY: hll-cr-bp-ap-southeast-1.cr.bytepluses.com
+  NAMESPACE: repository-01
+  REPOSITORY: github-demo
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      imageTag: ${{ steps.extractImageTag.outputs.imageTag }}
+    steps:
+      - id: extractImageTag
+        name: 提取镜像标签
+        run: tag=${{github.ref}} && imageTag="${tag##*tags/v}" && echo "::set-output name=imageTag::$(echo $imageTag)"
+        shell: bash
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: tag
+    steps:
+      - name: Login Register
+        id: login-register
+        env:
+          USERNAME: ${{ env.USERNAME }}
+          REGISTRY: ${{ env.REGISTRY }}
+          PASSWORD: ${{ secrets.BYTEPLUS_REGISTER_SECRETS }}
+        run: |
+          docker login --username=$USERNAME $REGISTRY -p $PASSWORD
+      - uses: actions/checkout@v2
+      - name: Build, tag, and push image
+        id: build-image
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          NAMESPACE: ${{ env.NAMESPACE }}
+          REPOSITORY: ${{ env.REPOSITORY }}
+          IMAGE_TAG: ${{ needs.tag.outputs.imageTag }}
+        run: |
+          docker build -f ExampleDockerfile -t $REGISTRY/$NAMESPACE/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$NAMESPACE/$REPOSITORY:$IMAGE_TAG
